@@ -67,7 +67,14 @@ void initDead10ccFix(void) {
     }
 
     void *pidinfo = malloc(pidinfo_size);
+    if (!pidinfo) {
+        return nil;
+    }
     pidinfo_size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, pidinfo, pidinfo_size);
+    if (pidinfo_size <= 0) {
+        free(pidinfo);
+        return nil;
+    }
 
     NSMutableSet *openFilePaths = [NSMutableSet set];
 
@@ -105,6 +112,7 @@ void initDead10ccFix(void) {
             fdinfo++;
         }
     }
+    free(pidinfo);
 
     NSMutableSet *lockedFilePaths = [NSMutableSet set];
 
@@ -161,7 +169,7 @@ void initDead10ccFix(void) {
             
         } else {
             int fd = open(path_c, O_RDONLY | O_NOCTTY);
-            if (fd <= 1) {
+            if (fd < 0) {
                 continue;
             }
 
@@ -171,6 +179,7 @@ void initDead10ccFix(void) {
             fl.l_pid = pid;
 
             int lock = fcntl(fd, F_GETLKPID, &fl);
+            close(fd);
             if (lock == -1) {
                 continue;
             }
@@ -201,7 +210,7 @@ void initDead10ccFix(void) {
 
 - (void)_terminateWithStatus:(int)status {
     // Fake implementation from UIApplication
-    NSLog(@"[LC] _handleTaskCompletionAndTerminate");
+//    NSLog(@"[LC] _handleTaskCompletionAndTerminate");
     [self handleAppDidEnterBackgroundReal];
     //    NSLog(@"Backtrace: %@", [NSThread performSelector:@selector(ams_symbolicatedCallStackSymbols)]);
     if([[NSClassFromString(@"UIApplication") sharedApplication] applicationState] != 0) {
