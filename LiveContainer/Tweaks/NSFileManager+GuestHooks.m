@@ -46,7 +46,18 @@ void NSFMGuestHooksInit(void) {
     } else {
         result = [NSURL fileURLWithPath:[NSString stringWithFormat:@"%s/Documents/Data/AppGroup/%@", getenv("LC_HOME_PATH"), groupIdentifier]];
     }
-    [NSFileManager.defaultManager createDirectoryAtURL:[result URLByAppendingPathComponent:@"Library/Caches"] withIntermediateDirectories:YES attributes:nil error:nil];
+    NSURL *cachesURL = [result URLByAppendingPathComponent:@"Library/Caches"];
+    static NSMutableSet *ensuredGroupCaches;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        ensuredGroupCaches = [[NSMutableSet alloc] init];
+    });
+    @synchronized(ensuredGroupCaches) {
+        if(![ensuredGroupCaches containsObject:groupIdentifier]) {
+            [NSFileManager.defaultManager createDirectoryAtURL:cachesURL withIntermediateDirectories:YES attributes:nil error:nil];
+            [ensuredGroupCaches addObject:groupIdentifier];
+        }
+    }
     return result;
 }
 

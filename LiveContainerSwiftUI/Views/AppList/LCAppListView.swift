@@ -83,7 +83,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     @State private var isViewAppeared = false
     
-    @ObservedObject var searchContext: SearchContext = SearchContext()
+    @StateObject var searchContext = SearchContext()
     var sortedApps: [LCAppModel] {
         return sharedAppSortManager.sortedApps
     }
@@ -99,7 +99,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         } else {
             return apps.filter { app in
                 app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
-                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+                (app.appInfo.bundleIdentifier() ?? "").localizedCaseInsensitiveContains(searchContext.debouncedQuery)
             }
         }
     }
@@ -111,7 +111,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         } else {
             return apps.filter { app in
                 app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
-                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+                (app.appInfo.bundleIdentifier() ?? "").localizedCaseInsensitiveContains(searchContext.debouncedQuery)
             }
         }
     }
@@ -131,14 +131,38 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 })
                 .hidden()
                 
-                LazyVStack {
-                    ForEach(filteredApps, id: \.self) { app in
-                        LCAppBanner(appModel: app, delegate: self)
+                if filteredApps.isEmpty && !searchContext.debouncedQuery.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("lc.common.noResults".loc.isEmpty ? "No Results" : "lc.common.noResults".loc)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
                     }
-                    .transition(.scale)
+                    .padding(.top, 40)
+                } else if filteredApps.isEmpty && sharedModel.apps.isEmpty && sharedModel.hiddenApps.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "square.stack.3d.up.badge.a.fill")
+                            .font(.system(size: 50))
+                            .foregroundStyle(.secondary)
+                        Text(sharedModel.multiLCStatus == 2 ? "lc.appList.convertToSharedToShowInLC2".loc : "lc.appList.installTip".loc)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 32)
+                    }
+                    .padding(.vertical, 60)
+                } else {
+                    LazyVStack {
+                        ForEach(filteredApps, id: \.self) { app in
+                            LCAppBanner(appModel: app, delegate: self)
+                        }
+                        .transition(.scale)
+                    }
+                    .padding()
+                    .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
                 }
-                .padding()
-                .animation(searchContext.isTyping ? nil : .easeInOut, value: filteredApps)
 
                 VStack {
                     if LCUtils.appGroupUserDefault.bool(forKey: "LCStrictHiding") {
@@ -572,10 +596,12 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
 
     
     func startInstallApp(_ fileUrl:URL) async {
+        defer {
+            try? FileManager.default.removeItem(at: fileUrl)
+        }
         do {
             self.installprogressVisible = true
             try await installIpaFile(fileUrl)
-            try FileManager.default.removeItem(at: fileUrl)
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true
@@ -589,6 +615,10 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
     
     func installIpaFile(_ url:URL) async throws {
         let fm = FileManager()
+        let payloadPath = fm.temporaryDirectory.appendingPathComponent("Payload")
+        defer {
+            try? fm.removeItem(at: payloadPath)
+        }
         
         let installProgress = Progress.discreteProgress(totalUnitCount: 100)
         self.installProgressPercentage = 0.0
@@ -599,7 +629,6 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         }
         let decompressProgress = Progress.discreteProgress(totalUnitCount: 100)
         installProgress.addChild(decompressProgress, withPendingUnitCount: 80)
-        let payloadPath = fm.temporaryDirectory.appendingPathComponent("Payload")
         if fm.fileExists(atPath: payloadPath.path) {
             try fm.removeItem(at: payloadPath)
         }
@@ -706,7 +735,9 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
                 signSuccess = success
                 c.resume()
             }, progressHandler: { signProgress in
-                installProgress.addChild(signProgress!, withPendingUnitCount: 20)
+                if let signProgress {
+                    installProgress.addChild(signProgress, withPendingUnitCount: 20)
+                }
             }, forceSign: false)
         })
         

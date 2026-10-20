@@ -133,14 +133,15 @@ final class LCStorageManagementModel: ObservableObject {
         let temporaryFilesSize = sizesByCategory[.temporaryFiles] ?? 0
         let appGroupSize = sizesByCategory[.appGroup] ?? 0
         let tweaksSize = sizesByCategory[.tweaks] ?? 0
-        let knownRootsSize = try await calculateCombinedSize(of: knownRoots)
+        
         var librarySize: Int64 = 0
         if let libraryPath = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
-            librarySize = try await calculateSize(at: libraryPath)
+            librarySize = (try? await calculateSize(at: libraryPath)) ?? 0
         }
-        // Other is the residual after explicit categories are removed from the known storage roots, plus loose root-level files.
-        let residualOtherSize = knownRootsSize - appBundleSize - containersSize - appGroupSize - tweaksSize
-        let otherSize = residualOtherSize + librarySize
+        // Avoid rescanning all knownRoots (which duplicates scanning bundleRoots, containerRoots, tweakRoots).
+        // Only scan loose files and directories in known roots that are not already counted.
+        let looseOtherSize = try await calculateLooseRootsResidual(roots: knownRoots, excludedDirNames: ["Applications", "Data", "Tweaks"])
+        let otherSize = looseOtherSize + librarySize
 
         return LCStorageBreakdown(
             totalSize: appBundleSize + containersSize + temporaryFilesSize + appGroupSize + tweaksSize + otherSize,
@@ -269,6 +270,23 @@ final class LCStorageManagementModel: ObservableObject {
         return uniqueURLs
     }
 
+    nonisolated private static func calculateLooseRootsResidual(roots: [URL], excludedDirNames: Set<String>) async throws -> Int64 {
+        let fm = FileManager.default
+        var total: Int64 = 0
+        for root in roots {
+            guard let contents = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
+                continue
+            }
+            for item in contents {
+                if excludedDirNames.contains(item.lastPathComponent) {
+                    continue
+                }
+                total += (try? await calculateSize(at: item)) ?? 0
+            }
+        }
+        return total
+    }
+
     nonisolated private static func calculateSize(at url: URL) async throws -> Int64 {
         let fileManager = FileManager.default
         let resourceKeys: Set<URLResourceKey> = [
@@ -281,7 +299,7 @@ final class LCStorageManagementModel: ObservableObject {
             at: url,
             includingPropertiesForKeys: Array(resourceKeys),
             options: [],
-            errorHandler: nil
+            errorHandler: { _, _ in true }
         ) else {
             return 0
         }

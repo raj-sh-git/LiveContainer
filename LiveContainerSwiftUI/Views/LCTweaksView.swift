@@ -70,7 +70,25 @@ struct LCTweakFolderView : View {
     var body: some View {
         List {
             Section {
-                ForEach(tweakItems, id:\.self) { tweakItem in
+                if tweakItems.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "shippingbox")
+                            .font(.system(size: 44))
+                            .foregroundColor(.secondary)
+                        Text("No Tweaks")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text(isRoot ? "lc.tweakView.globalFolderDesc".loc : "lc.tweakView.appFolderDesc".loc)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 32)
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(tweakItems, id:\.self) { tweakItem in
                     HStack {
                         Group {
                             if tweakItem.isFolder && !tweakItem.isFramework {
@@ -126,6 +144,7 @@ struct LCTweakFolderView : View {
 
                 }.onDelete { indexSet in
                     deleteTweakItem(indexSet: indexSet)
+                }
                 }
             } footer: {
                 if isRoot {
@@ -379,9 +398,12 @@ struct LCTweakFolderView : View {
                     LCPatchAddRPath(path, header);
                 }
 
-                let isFramework = toPath.lastPathComponent.hasSuffix(".framework")
-                let isTweak = toPath.lastPathComponent.hasSuffix(".dylib")
-                self.tweakItems.append(LCTweakItem(fileUrl: toPath, isFolder: false, isFramework: isFramework, isTweak: isTweak, isEnabled: true))
+                var isFolderObjC: ObjCBool = false
+                fm.fileExists(atPath: toPath.path, isDirectory: &isFolderObjC)
+                let isFolder = isFolderObjC.boolValue
+                let isFramework = isFolder && toPath.lastPathComponent.hasSuffix(".framework")
+                let isTweak = !isFolder && toPath.lastPathComponent.hasSuffix(".dylib")
+                self.tweakItems.append(LCTweakItem(fileUrl: toPath, isFolder: isFolder, isFramework: isFramework, isTweak: isTweak, isEnabled: true))
             }
         } catch {
             errorInfo = error.localizedDescription

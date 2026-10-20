@@ -11,25 +11,36 @@ enum MultitaskMode : Int {
 }
 
 @objc class MultitaskManager : NSObject {
+    static private let lock = NSLock()
     static private var usingMultitaskContainers : [String] = []
     
     @objc class func registerMultitaskContainer(container: String) {
-        usingMultitaskContainers.append(container)
+        lock.lock()
+        defer { lock.unlock() }
+        if !usingMultitaskContainers.contains(container) {
+            usingMultitaskContainers.append(container)
+        }
     }
     
     @objc class func unregisterMultitaskContainer(container: String) {
+        lock.lock()
+        defer { lock.unlock() }
         usingMultitaskContainers.removeAll(where: { c in
             return c == container
         })
     }
     
     @objc class func isUsing(container: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         return usingMultitaskContainers.contains { c in
             return c == container
         }
     }
     
     @objc class func isMultitasking() -> Bool {
-        return usingMultitaskContainers.count > 0
+        lock.lock()
+        defer { lock.unlock() }
+        return !usingMultitaskContainers.isEmpty
     }
 }

@@ -26,10 +26,15 @@ NSString* accessGroup = nil;
 NSString* containerId = nil;
 
 OSStatus new_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
+    if(!attributes) {
+        return orig_SecItemAdd(attributes, result);
+    }
     NSMutableDictionary *attributesCopy = ((__bridge NSDictionary *)attributes).mutableCopy;
     attributesCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
-    // for keychain deletion in LCUI
-    attributesCopy[@"alis"] = containerId;
+    // for keychain deletion in LCUI if not already labeled
+    if(!attributesCopy[@"alis"]) {
+        attributesCopy[@"alis"] = containerId;
+    }
     
     OSStatus status = orig_SecItemAdd((__bridge CFDictionaryRef)attributesCopy, result);
     if(status == errSecParam) {
@@ -40,6 +45,9 @@ OSStatus new_SecItemAdd(CFDictionaryRef attributes, CFTypeRef *result) {
 }
 
 OSStatus new_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
+    if(!query) {
+        return orig_SecItemCopyMatching(query, result);
+    }
     NSMutableDictionary *queryCopy = ((__bridge NSDictionary *)query).mutableCopy;
     queryCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
     OSStatus status = orig_SecItemCopyMatching((__bridge CFDictionaryRef)queryCopy, result);
@@ -52,6 +60,9 @@ OSStatus new_SecItemCopyMatching(CFDictionaryRef query, CFTypeRef *result) {
 }
 
 OSStatus new_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attributesToUpdate) {
+    if(!query || !attributesToUpdate) {
+        return orig_SecItemUpdate(query, attributesToUpdate);
+    }
     NSMutableDictionary *queryCopy = ((__bridge NSDictionary *)query).mutableCopy;
     queryCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
     
@@ -68,6 +79,9 @@ OSStatus new_SecItemUpdate(CFDictionaryRef query, CFDictionaryRef attributesToUp
 }
 
 OSStatus new_SecItemDelete(CFDictionaryRef query){
+    if(!query) {
+        return orig_SecItemDelete(query);
+    }
     NSMutableDictionary *queryCopy = ((__bridge NSDictionary *)query).mutableCopy;
     queryCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
     OSStatus status = orig_SecItemDelete((__bridge CFDictionaryRef)queryCopy);
@@ -79,12 +93,17 @@ OSStatus new_SecItemDelete(CFDictionaryRef query){
 }
 
 SecKeyRef new_SecKeyCreateRandomKey(CFDictionaryRef parameters, CFErrorRef *error) {
+    if(!parameters) {
+        return orig_SecKeyCreateRandomKey(parameters, error);
+    }
     NSMutableDictionary *paramsCopy = ((__bridge NSDictionary *)parameters).mutableCopy;
     paramsCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
     SecKeyRef key = orig_SecKeyCreateRandomKey((__bridge CFDictionaryRef)paramsCopy, error);
-    if(!key && error && *error) {
-        CFRelease(*error);
-        *error = NULL;
+    if(!key) {
+        if(error && *error) {
+            CFRelease(*error);
+            *error = NULL;
+        }
         key = orig_SecKeyCreateRandomKey(parameters, error);
     }
     
@@ -92,12 +111,17 @@ SecKeyRef new_SecKeyCreateRandomKey(CFDictionaryRef parameters, CFErrorRef *erro
 }
 
 SecKeyRef new_SecKeyCreateWithData(CFDataRef keyData, CFDictionaryRef parameters, CFErrorRef *error) {
+    if(!parameters) {
+        return orig_SecKeyCreateWithData(keyData, parameters, error);
+    }
     NSMutableDictionary *paramsCopy = ((__bridge NSDictionary *)parameters).mutableCopy;
     paramsCopy[(__bridge id)kSecAttrAccessGroup] = accessGroup;
     SecKeyRef key = orig_SecKeyCreateWithData(keyData, (__bridge CFDictionaryRef)paramsCopy, error);
-    if(!key && error && *error) {
-        CFRelease(*error);
-        *error = NULL;
+    if(!key) {
+        if(error && *error) {
+            CFRelease(*error);
+            *error = NULL;
+        }
         key = orig_SecKeyCreateWithData(keyData, parameters, error);
     }
     

@@ -192,9 +192,11 @@ struct LCSettingsView: View {
                 
                 Section {
                     Picker(selection: $selected32BitEmulator) {
+                        Text("lc.common.none".loc).tag("")
                         ForEach(sharedModel.arm32EmuApps, id: \.self) { app in
-                            Text("lc.common.none".loc).tag("")
-                            Text(app.appInfo.displayName()).tag(app.appInfo.relativeBundlePath!)
+                            if let relPath = app.appInfo.relativeBundlePath {
+                                Text(app.appInfo.displayName()).tag(relPath)
+                            }
                         }
                     } label: {
                         Text("lc.settings.selected32BitEmulator".loc)
@@ -425,7 +427,11 @@ struct LCSettingsView: View {
                 Text("lc.settings.importCertFromBuiltinSideStoreDesc".loc)
             }
             .betterFileImporter(isPresented: $certificateImportFileAlert.show, types: [.p12], multiple: false, callback: { fileUrls in
-                certificateImportFileAlert.close(result: fileUrls[0])
+                if let firstUrl = fileUrls.first {
+                    certificateImportFileAlert.close(result: firstUrl)
+                } else {
+                    certificateImportFileAlert.close(result: nil)
+                }
             }, onDismiss: {
                 certificateImportFileAlert.close(result: nil)
             })
@@ -460,15 +466,21 @@ struct LCSettingsView: View {
     }
     
     func openGitHub() {
-        UIApplication.shared.open(URL(string: "https://github.com/LiveContainer/LiveContainer")!)
+        if let url = URL(string: "https://github.com/LiveContainer/LiveContainer") {
+            UIApplication.shared.open(url)
+        }
     }
     
     func openGitHub2() {
-        UIApplication.shared.open(URL(string: "https://github.com/hugeBlack")!)
+        if let url = URL(string: "https://github.com/hugeBlack") {
+            UIApplication.shared.open(url)
+        }
     }
     
     func openTwitter() {
-        UIApplication.shared.open(URL(string: "https://twitter.com/khanhduytran0")!)
+        if let url = URL(string: "https://twitter.com/khanhduytran0") {
+            UIApplication.shared.open(url)
+        }
     }
 
     func clearNotifications() {
@@ -484,7 +496,7 @@ struct LCSettingsView: View {
 
     func export() {
         let fileManager = FileManager.default
-        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         
         // 1. Copy embedded.mobileprovision from the main bundle to Documents
         if let embeddedURL = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") {
@@ -529,7 +541,7 @@ struct LCSettingsView: View {
     func exportMainBundle() {
         let url = Bundle.main.bundleURL
         let fileManager = FileManager.default
-        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         do {
             let destinationURL = documentsURL.appendingPathComponent(url.lastPathComponent)
             try fileManager.copyItem(at: url, to: destinationURL)
@@ -689,7 +701,7 @@ struct LCSettingsView: View {
     func exportDyld() {
         let url = URL(fileURLWithPath: "/usr/lib/dyld")
         let fileManager = FileManager.default
-        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         do {
             let destinationURL = documentsURL.appendingPathComponent(url.lastPathComponent)
             try fileManager.copyItem(at: url, to: destinationURL)

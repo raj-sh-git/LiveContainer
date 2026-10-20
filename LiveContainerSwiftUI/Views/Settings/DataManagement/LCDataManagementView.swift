@@ -46,12 +46,12 @@ struct LCDataManagementView : View {
             Section {
                 if sharedModel.multiLCStatus != 2 {
                     Button {
-                        moveAppGroupFolderFromPrivateToAppGroup()
+                        Task { await moveAppGroupFolderFromPrivateToAppGroup() }
                     } label: {
                         Text("lc.settings.appGroupPrivateToShare".loc)
                     }
                     Button {
-                        moveAppGroupFolderFromAppGroupToPrivate()
+                        Task { await moveAppGroupFolderFromAppGroupToPrivate() }
                     } label: {
                         Text("lc.settings.appGroupShareToPrivate".loc)
                     }
@@ -406,58 +406,56 @@ struct LCDataManagementView : View {
         }
     }
     
-    func moveAppGroupFolderFromAppGroupToPrivate() {
+    func moveAppGroupFolderFromAppGroupToPrivate() async {
         let fm = FileManager()
         do {
-            if !fm.fileExists(atPath: LCPath.appGroupPath.path) {
-                try fm.createDirectory(atPath: LCPath.appGroupPath.path, withIntermediateDirectories: true)
-            }
-            if !fm.fileExists(atPath: LCPath.lcGroupAppGroupPath.path) {
-                try fm.createDirectory(atPath: LCPath.lcGroupAppGroupPath.path, withIntermediateDirectories: true)
-            }
-            
-            let privateFolderContents = try fm.contentsOfDirectory(at: LCPath.appGroupPath, includingPropertiesForKeys: nil)
-            let sharedFolderContents = try fm.contentsOfDirectory(at: LCPath.lcGroupAppGroupPath, includingPropertiesForKeys: nil)
-            if privateFolderContents.count > 0 {
-                errorInfo = "lc.settings.appGroupExistPrivate".loc
-                errorShow = true
-                return
-            }
-            for file in sharedFolderContents {
-                try fm.moveItem(at: file, to: LCPath.appGroupPath.appendingPathComponent(file.lastPathComponent))
-            }
+            try await Task.detached(priority: .userInitiated) {
+                if !fm.fileExists(atPath: LCPath.appGroupPath.path) {
+                    try fm.createDirectory(atPath: LCPath.appGroupPath.path, withIntermediateDirectories: true)
+                }
+                if !fm.fileExists(atPath: LCPath.lcGroupAppGroupPath.path) {
+                    try fm.createDirectory(atPath: LCPath.lcGroupAppGroupPath.path, withIntermediateDirectories: true)
+                }
+                
+                let privateFolderContents = try fm.contentsOfDirectory(at: LCPath.appGroupPath, includingPropertiesForKeys: nil)
+                let sharedFolderContents = try fm.contentsOfDirectory(at: LCPath.lcGroupAppGroupPath, includingPropertiesForKeys: nil)
+                if privateFolderContents.count > 0 {
+                    throw "lc.settings.appGroupExistPrivate".loc
+                }
+                for file in sharedFolderContents {
+                    try fm.moveItem(at: file, to: LCPath.appGroupPath.appendingPathComponent(file.lastPathComponent))
+                }
+            }.value
             successInfo = "lc.settings.appGroup.moveSuccess".loc
             successShow = true
-            
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true
         }
     }
     
-    func moveAppGroupFolderFromPrivateToAppGroup() {
+    func moveAppGroupFolderFromPrivateToAppGroup() async {
         let fm = FileManager()
         do {
-            if !fm.fileExists(atPath: LCPath.appGroupPath.path) {
-                try fm.createDirectory(atPath: LCPath.appGroupPath.path, withIntermediateDirectories: true)
-            }
-            if !fm.fileExists(atPath: LCPath.lcGroupAppGroupPath.path) {
-                try fm.createDirectory(atPath: LCPath.lcGroupAppGroupPath.path, withIntermediateDirectories: true)
-            }
-            
-            let privateFolderContents = try fm.contentsOfDirectory(at: LCPath.appGroupPath, includingPropertiesForKeys: nil)
-            let sharedFolderContents = try fm.contentsOfDirectory(at: LCPath.lcGroupAppGroupPath, includingPropertiesForKeys: nil)
-            if sharedFolderContents.count > 0 {
-                errorInfo = "lc.settings.appGroupExist Shared".loc
-                errorShow = true
-                return
-            }
-            for file in privateFolderContents {
-                try fm.moveItem(at: file, to: LCPath.lcGroupAppGroupPath.appendingPathComponent(file.lastPathComponent))
-            }
+            try await Task.detached(priority: .userInitiated) {
+                if !fm.fileExists(atPath: LCPath.appGroupPath.path) {
+                    try fm.createDirectory(atPath: LCPath.appGroupPath.path, withIntermediateDirectories: true)
+                }
+                if !fm.fileExists(atPath: LCPath.lcGroupAppGroupPath.path) {
+                    try fm.createDirectory(atPath: LCPath.lcGroupAppGroupPath.path, withIntermediateDirectories: true)
+                }
+                
+                let privateFolderContents = try fm.contentsOfDirectory(at: LCPath.appGroupPath, includingPropertiesForKeys: nil)
+                let sharedFolderContents = try fm.contentsOfDirectory(at: LCPath.lcGroupAppGroupPath, includingPropertiesForKeys: nil)
+                if sharedFolderContents.count > 0 {
+                    throw "lc.settings.appGroupExist Shared".loc
+                }
+                for file in privateFolderContents {
+                    try fm.moveItem(at: file, to: LCPath.lcGroupAppGroupPath.appendingPathComponent(file.lastPathComponent))
+                }
+            }.value
             successInfo = "lc.settings.appGroup.moveSuccess".loc
             successShow = true
-            
         } catch {
             errorInfo = error.localizedDescription
             errorShow = true

@@ -221,15 +221,22 @@ final class ShareExtensionViewModel: ObservableObject {
             return apps.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         }
 
+        var appsByIdentifier: [String: ShareApp] = [:]
+        for app in apps {
+            appsByIdentifier[uniqueIdentifier(for: app)] = app
+        }
+
         var sortedApps: [ShareApp] = []
-        var remainingApps = apps
+        var consumed = Set<String>()
         for uniqueID in customSortOrder {
-            if let index = remainingApps.firstIndex(where: { uniqueID == uniqueIdentifier(for: $0) }) {
-                sortedApps.append(remainingApps.remove(at: index))
+            if let app = appsByIdentifier[uniqueID], !consumed.contains(uniqueID) {
+                sortedApps.append(app)
+                consumed.insert(uniqueID)
             }
         }
 
-        remainingApps.sort { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
+        let remainingApps = apps.filter { !consumed.contains(uniqueIdentifier(for: $0)) }
+            .sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
         sortedApps.append(contentsOf: remainingApps)
         return sortedApps
     }

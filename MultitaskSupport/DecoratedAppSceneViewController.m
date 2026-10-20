@@ -130,7 +130,7 @@
     
     CGRect contentFrame = CGRectMake(0, 0, self.view.frame.size.width, self.view.frame.size.height - navBarHeight);
     UIView *fixedPositionContentView = [[UIView alloc] initWithFrame:contentFrame];
-    self.contentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    fixedPositionContentView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     if([NSUserDefaults.lcSharedDefaults boolForKey:@"LCMultitaskBottomWindowBar"]) {
         [self.view insertArrangedSubview:fixedPositionContentView atIndex:0];
     } else {
@@ -169,6 +169,7 @@
         [_appSceneVC.view.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
         [_appSceneVC.view.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor]
     ]];
+    [_appSceneVC didMoveToParentViewController:self];
     
     
     NSUserDefaults *defaults = NSUserDefaults.lcSharedDefaults;
@@ -587,6 +588,10 @@
     CGRect maxFrame = UIEdgeInsetsInsetRect(self.view.window.frame, self.view.window.safeAreaInsets);
     // save origin as normalized coordinates
     self.originalFrame = CGRectMake(self.view.frame.origin.x / maxFrame.size.width, self.view.frame.origin.y / maxFrame.size.height, self.view.frame.size.width, self.view.frame.size.height);
+}
+
+- (void)dealloc {
+    [NSUserDefaults.lcSharedDefaults removeObserver:self forKeyPath:@"LCMultitaskBottomWindowBar"];
 }
 
 @end

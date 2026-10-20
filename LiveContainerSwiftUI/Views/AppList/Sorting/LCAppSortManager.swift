@@ -86,19 +86,22 @@ class LCAppSortManager: ObservableObject {
         self.customSortOrder = LCUtils.appGroupUserDefault.array(forKey: "LCCustomSortOrder") as? [String] ?? []
         
         DataManager.shared.model.$apps
-            .sink { newValue in
+            .sink { [weak self] newValue in
+                guard let self else { return }
                 self.sortedApps = self.getSortedApps(newValue, sortType: self.appSortType, customSortOrder: self.customSortOrder)
             }
             .store(in: &cancellables)
         
         DataManager.shared.model.$hiddenApps
-            .sink { newValue in
+            .sink { [weak self] newValue in
+                guard let self else { return }
                 self.sortedHiddenApps = self.getSortedApps(newValue, sortType: self.appSortType, customSortOrder: self.customSortOrder)
             }
             .store(in: &cancellables)
         
         $customSortOrder
-            .sink { newValue in
+            .sink { [weak self] newValue in
+                guard let self else { return }
                 if self.appSortType == .custom {
                     self.sortedApps = self.getSortedApps(DataManager.shared.model.apps, sortType: self.appSortType, customSortOrder: newValue)
                     if DataManager.shared.model.isHiddenAppUnlocked {
@@ -108,10 +111,8 @@ class LCAppSortManager: ObservableObject {
             }
             .store(in: &cancellables)
         DataManager.shared.model.$isHiddenAppUnlocked
-            .sink { newValue in
-                if(!newValue) {
-                    return
-                }
+            .sink { [weak self] newValue in
+                guard let self, newValue else { return }
                 self.sortedHiddenApps = self.getSortedApps(DataManager.shared.model.hiddenApps, sortType: self.appSortType, customSortOrder: self.customSortOrder)
             }
             .store(in: &cancellables)
@@ -181,18 +182,27 @@ class LCAppSortManager: ObservableObject {
             return appList.sorted { $0.appInfo.displayName().localizedStandardCompare($1.appInfo.displayName()) == .orderedAscending }
         }
         
-        var sortedApps: [LCAppModel] = []
-        var remainingApps = appList
-        
-        for uniqueId in customSortOrder {
-            if let index = remainingApps.firstIndex(where: { matches(uniqueId: uniqueId, app: $0) }) {
-                sortedApps.append(remainingApps.remove(at: index))
+        var appDict: [String: LCAppModel] = [:]
+        for app in appList {
+            if let id = getUniqueIdentifier(for: app) {
+                appDict[id] = app
             }
         }
         
-        remainingApps.sort { $0.appInfo.displayName().localizedStandardCompare($1.appInfo.displayName()) == .orderedAscending }
-        sortedApps.append(contentsOf: remainingApps)
+        var sortedApps: [LCAppModel] = []
+        var placedSet = Set<ObjectIdentifier>()
         
+        for uniqueId in customSortOrder {
+            if let app = appDict[uniqueId], placedSet.insert(ObjectIdentifier(app)).inserted {
+                sortedApps.append(app)
+            }
+        }
+        
+        let remainingApps = appList
+            .filter { !placedSet.contains(ObjectIdentifier($0)) }
+            .sorted { $0.appInfo.displayName().localizedStandardCompare($1.appInfo.displayName()) == .orderedAscending }
+        
+        sortedApps.append(contentsOf: remainingApps)
         return sortedApps
     }
     

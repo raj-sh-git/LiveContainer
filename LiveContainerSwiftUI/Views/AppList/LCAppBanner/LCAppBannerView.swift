@@ -198,6 +198,7 @@ final class LCAppBannerRootView: UIView {
         ) else {
             return .clear
         }
+        context.interpolationQuality = .low
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
 
         let averageColor = UIColor(

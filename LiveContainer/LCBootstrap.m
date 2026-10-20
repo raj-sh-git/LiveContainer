@@ -39,7 +39,7 @@ bool sideStoreExist = false;
     return lcUserDefaults;
 }
 + (instancetype)lcSharedDefaults {
-    if(!lcUserDefaults) {
+    if(!lcSharedDefaults) {
         lcSharedDefaults = [[NSUserDefaults alloc] initWithSuiteName: [LCSharedUtils appGroupID]];
     }
     return lcSharedDefaults;
@@ -303,19 +303,24 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
         NSMutableDictionary* infoPlist = [NSMutableDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath]];
         CFErrorRef error = NULL;
         void* taskSelf = SecTaskCreateFromSelf(NULL);
-        CFTypeRef value = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("application-identifier"), &error);
-        CFRelease(taskSelf);
-        if (value) {
-            NSString *entStr = (__bridge NSString *)value;
-            CFRelease(value);
-            NSRange dotRange = [entStr rangeOfString:@"."];
-            if (dotRange.location != NSNotFound) {
-                NSString *expectedBundleId = [entStr substringFromIndex:dotRange.location + 1];
-                if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:expectedBundleId]) {
-                    infoPlist[@"CFBundleIdentifier"] = expectedBundleId;
-                    [infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+        if (taskSelf) {
+            CFTypeRef value = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("application-identifier"), &error);
+            CFRelease(taskSelf);
+            if (value) {
+                NSString *entStr = (__bridge NSString *)value;
+                CFRelease(value);
+                NSRange dotRange = [entStr rangeOfString:@"."];
+                if (dotRange.location != NSNotFound) {
+                    NSString *expectedBundleId = [entStr substringFromIndex:dotRange.location + 1];
+                    if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:expectedBundleId]) {
+                        infoPlist[@"CFBundleIdentifier"] = expectedBundleId;
+                        [infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+                    }
                 }
             }
+        }
+        if (error) {
+            CFRelease(error);
         }
     }
     

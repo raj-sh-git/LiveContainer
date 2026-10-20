@@ -44,7 +44,7 @@ int extract(NSString* fileToExtract, NSString* extractionPath, NSProgress* progr
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
-    if ((r = archive_read_open_filename(a, fileToExtract.fileSystemRepresentation, 10240))) {
+    if ((r = archive_read_open_filename(a, fileToExtract.fileSystemRepresentation, 262144))) {
         archive_read_free(a);
         return 1;
     }
@@ -65,7 +65,7 @@ int extract(NSString* fileToExtract, NSString* extractionPath, NSProgress* progr
     a = archive_read_new();
     archive_read_support_format_all(a);
     archive_read_support_filter_all(a);
-    if ((r = archive_read_open_filename(a, fileToExtract.fileSystemRepresentation, 10240))) {
+    if ((r = archive_read_open_filename(a, fileToExtract.fileSystemRepresentation, 262144))) {
         archive_read_free(a);
         return 1;
     }
@@ -73,39 +73,63 @@ int extract(NSString* fileToExtract, NSString* extractionPath, NSProgress* progr
     archive_write_disk_set_options(ext, flags);
     archive_write_disk_set_standard_lookup(ext);
 
+    int extractError = 0;
+    NSString *standardExtractionPath = [extractionPath stringByStandardizingPath];
+
     while ((r = archive_read_next_header(a, &entry)) != ARCHIVE_EOF) {
         if (r == ARCHIVE_EOF)
             break;
         if (r < ARCHIVE_OK)
             fprintf(stderr, "%s\n", archive_error_string(a));
-        if (r < ARCHIVE_WARN)
+        if (r < ARCHIVE_WARN) {
+            extractError = 1;
             break;
+        }
         
-        NSString* currentFile = [NSString stringWithUTF8String:archive_entry_pathname(entry)];
-        NSString* fullOutputPath = [extractionPath stringByAppendingPathComponent:currentFile];
-        //printf("extracting %@ to %@\n", currentFile, fullOutputPath);
+        const char *entryPathC = archive_entry_pathname(entry);
+        if (!entryPathC) {
+            continue;
+        }
+        NSString* currentFile = [NSString stringWithUTF8String:entryPathC];
+        if (!currentFile) {
+            continue;
+        }
+        NSString* fullOutputPath = [[extractionPath stringByAppendingPathComponent:currentFile] stringByStandardizingPath];
+        if (![fullOutputPath hasPrefix:standardExtractionPath]) {
+            fprintf(stderr, "Zip-slip attempt detected: %s\n", entryPathC);
+            extractError = 1;
+            break;
+        }
         archive_entry_set_pathname(entry, fullOutputPath.fileSystemRepresentation);
         
         r = archive_write_header(ext, entry);
         if (r < ARCHIVE_OK)
             fprintf(stderr, "%s\n", archive_error_string(ext));
-        else if (archive_entry_size(entry) > 0) {
+        if (r < ARCHIVE_WARN) {
+            extractError = 1;
+            break;
+        }
+        if (archive_entry_size(entry) > 0) {
             r = copy_data(a, ext, progress);
             if (r < ARCHIVE_OK)
                 fprintf(stderr, "%s\n", archive_error_string(ext));
-            if (r < ARCHIVE_WARN)
+            if (r < ARCHIVE_WARN) {
+                extractError = 1;
                 break;
+            }
         }
         r = archive_write_finish_entry(ext);
         if (r < ARCHIVE_OK)
             fprintf(stderr, "%s\n", archive_error_string(ext));
-        if (r < ARCHIVE_WARN)
+        if (r < ARCHIVE_WARN) {
+            extractError = 1;
             break;
+        }
     }
     archive_read_close(a);
     archive_read_free(a);
     archive_write_close(ext);
     archive_write_free(ext);
     
-    return 0;
+    return extractError;
 }

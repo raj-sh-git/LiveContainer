@@ -92,23 +92,23 @@
 
 
 + (void)loadStoreFrameworksWithError2:(NSError **)error {
-    // too lazy to use dispatch_once
-    static BOOL loaded = NO;
-    if (loaded) return;
-
-    void* handle = dlopen("@executable_path/Frameworks/ZSign.dylib", RTLD_GLOBAL);
-    const char* dlerr = dlerror();
-    if (!handle || (uint64_t)handle > 0xf00000000000) {
-        if (dlerr) {
-            *error = [NSError errorWithDomain:NSBundle.mainBundle.bundleIdentifier code:1 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to load ZSign: %s", dlerr]}];
-        } else {
-            *error = [NSError errorWithDomain:NSBundle.mainBundle.bundleIdentifier code:1 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to load ZSign: An unknown error occurred."]}];
+    static dispatch_once_t onceToken;
+    static NSError *loadError = nil;
+    dispatch_once(&onceToken, ^{
+        void* handle = dlopen("@executable_path/Frameworks/ZSign.dylib", RTLD_GLOBAL);
+        const char* dlerr = dlerror();
+        if (!handle || (uint64_t)handle > 0xf00000000000) {
+            if (dlerr) {
+                loadError = [NSError errorWithDomain:NSBundle.mainBundle.bundleIdentifier code:1 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to load ZSign: %s", dlerr]}];
+            } else {
+                loadError = [NSError errorWithDomain:NSBundle.mainBundle.bundleIdentifier code:1 userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"Failed to load ZSign: An unknown error occurred."]}];
+            }
+            NSLog(@"[LC] %s", dlerr);
         }
-        NSLog(@"[LC] %s", dlerr);
-        return;
+    });
+    if (loadError && error) {
+        *error = loadError;
     }
-    
-    loaded = YES;
 }
 
 + (NSURL *)storeBundlePath {
@@ -173,12 +173,12 @@
 }
 
 + (int)validateCertificateWithCompletionHandler:(void(^)(int status, NSDate *expirationDate, NSString *organizationalUnitName, NSString *error))completionHandler {
-    NSError *error;
+    NSError *error = nil;
     NSData *certData = [LCUtils certificateData];
+    [self loadStoreFrameworksWithError2:&error];
     if (error) {
         return -6;
     }
-    [self loadStoreFrameworksWithError2:&error];
     int ans = [NSClassFromString(@"ZSigner") checkCert:certData pass:[LCSharedUtils certificatePassword] completionHandler:completionHandler];
     return ans;
 }
@@ -191,7 +191,7 @@
         io_registry_entry_t memory_map = IORegistryEntryFromPath(0, "IODeviceTree:/chosen/memory-map");
         if (memory_map == IO_OBJECT_NULL)
             return NO;
-        NSArray *keys = (__bridge NSArray *)IORegistryEntryCreateCFProperty(memory_map, CFSTR(kIORegistryEntryPropertyKeysKey), 0, 0);
+        NSArray *keys = CFBridgingRelease(IORegistryEntryCreateCFProperty(memory_map, CFSTR(kIORegistryEntryPropertyKeysKey), 0, 0));
         IOObjectRelease(memory_map);
         return keys && [keys containsObject:@"TXM"];
     }
@@ -241,7 +241,17 @@
 }
 
 + (NSString *)appUrlScheme {
-    return NSBundle.mainBundle.infoDictionary[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0];
+    NSArray *urlTypes = NSBundle.mainBundle.infoDictionary[@"CFBundleURLTypes"];
+    if ([urlTypes isKindOfClass:[NSArray class]] && urlTypes.count > 0) {
+        NSDictionary *firstType = urlTypes.firstObject;
+        if ([firstType isKindOfClass:[NSDictionary class]]) {
+            NSArray *schemes = firstType[@"CFBundleURLSchemes"];
+            if ([schemes isKindOfClass:[NSArray class]] && schemes.count > 0) {
+                return schemes.firstObject;
+            }
+        }
+    }
+    return @"livecontainer";
 }
 
 + (BOOL)isAppGroupAltStoreLike {

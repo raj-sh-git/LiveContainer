@@ -408,6 +408,8 @@ class LCAppModel: ObservableObject, Hashable {
         defer {
             Task{ await MainActor.run {
                 self.isSigningInProgress = false
+                self.observer?.invalidate()
+                self.observer = nil
             }}
         }
         
@@ -420,7 +422,9 @@ class LCAppModel: ObservableObject, Hashable {
                 guard let signProgress else {
                     return
                 }
-                self.isSigningInProgress = true
+                DispatchQueue.main.async {
+                    self.isSigningInProgress = true
+                }
                 self.observer = signProgress.observe(\.fractionCompleted) { p, v in
                     DispatchQueue.main.async {
                         self.signProgress = signProgress.fractionCompleted
@@ -506,7 +510,10 @@ class LCAppModel: ObservableObject, Hashable {
             return
         }
         supportedLanguages = []
-        let fileURLs = try fm.contentsOfDirectory(at: URL(fileURLWithPath: appInfo.bundlePath()!) , includingPropertiesForKeys: nil)
+        guard let bundlePath = appInfo.bundlePath() else {
+            return
+        }
+        let fileURLs = try fm.contentsOfDirectory(at: URL(fileURLWithPath: bundlePath) , includingPropertiesForKeys: nil)
         for fileURL in fileURLs {
             let attributes = try fm.attributesOfItem(atPath: fileURL.path)
             let fileType = attributes[.type] as? FileAttributeType

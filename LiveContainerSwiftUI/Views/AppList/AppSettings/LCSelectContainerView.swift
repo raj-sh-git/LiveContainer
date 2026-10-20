@@ -21,20 +21,31 @@ struct LCSelectContainerView : View{
     
     var body: some View {
         NavigationView {
-            List(selection: $multiSelection) {
-                ForEach(unusedContainers, id: \.folderName) { container in
-                    VStack(alignment: .leading) {
-                        Text(container.name)
-                        Text("\(container.folderName) - \(container.appIdentifier ?? "lc.container.selectUnused.unknownApp".loc)")
-                            .font(.footnote)
-                            .foregroundStyle(.gray)
+            Group {
+                if unusedContainers.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "shippingbox.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
+                        Text("lc.container.selectUnused.noUnused".loc)
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
                     }
-                }
-                if unusedContainers.count == 0 {
-                    Text("lc.container.selectUnused.noUnused".loc)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(selection: $multiSelection) {
+                        ForEach(unusedContainers, id: \.folderName) { container in
+                            VStack(alignment: .leading) {
+                                Text(container.name)
+                                Text("\(container.folderName) - \(container.appIdentifier ?? "lc.container.selectUnused.unknownApp".loc)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                    }
+                    .environment(\.editMode, .constant(.active))
                 }
             }
-            .environment(\.editMode, .constant(.active))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {

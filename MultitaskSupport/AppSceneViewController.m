@@ -192,6 +192,7 @@
         // Now it's time to get the initial settings from decorated VC
         [self.delegate appSceneVCWillActivateScene:self];
         [self addChildViewController:self.hostingController.sceneViewController];
+        [self.hostingController.sceneViewController didMoveToParentViewController:self];
         
         // For new API, let FBSSceneObserver send host scene events instead of NSExtensionContext
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;

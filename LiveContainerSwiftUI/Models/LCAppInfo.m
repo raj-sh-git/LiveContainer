@@ -195,7 +195,10 @@
     
     if([NSFileManager.defaultManager fileExistsAtPath:cachedIconPath]) {
         CGImageRef imageRef = loadCGImageFromURL(cachedIconUrl);
-        uiIcon = [UIImage imageWithCGImage:imageRef];
+        if (imageRef) {
+            uiIcon = [UIImage imageWithCGImage:imageRef];
+            CGImageRelease(imageRef);
+        }
     }
     
     // generate and save icon cache to disk

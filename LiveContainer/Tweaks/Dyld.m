@@ -58,13 +58,13 @@ static void ensureBreakpointExceptionHandler(void) {
 
 static void overwriteAppExecutableFileType(void) {
     struct mach_header_64* appImageMachOHeader = (struct mach_header_64*) orig_dyld_get_image_header(appMainImageIndex);
-    kern_return_t kret = builtin_vm_protect(mach_task_self(), (vm_address_t)appImageMachOHeader, sizeof(appImageMachOHeader), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
+    kern_return_t kret = builtin_vm_protect(mach_task_self(), (vm_address_t)appImageMachOHeader, sizeof(struct mach_header_64), false, PROT_READ | PROT_WRITE | VM_PROT_COPY);
     if(kret != KERN_SUCCESS) {
         NSLog(@"[LC] failed to change appImageMachOHeader to rw");
     } else {
         NSLog(@"[LC] changed appImageMachOHeader to rw");
         appImageMachOHeader->filetype = MH_EXECUTE;
-        builtin_vm_protect(mach_task_self(), (vm_address_t)appImageMachOHeader, sizeof(appImageMachOHeader), false,  PROT_READ);
+        builtin_vm_protect(mach_task_self(), (vm_address_t)appImageMachOHeader, sizeof(struct mach_header_64), false,  PROT_READ);
     }
 }
 
@@ -134,7 +134,14 @@ void hideLiveContainerImageCallback(const struct mach_header* header, intptr_t v
         if(ret != KERN_SUCCESS) {
             os_thread_self_restrict_tpro_to_rw();
         }
-        strcpy((char *)info.dli_fname, fakePath);
+        size_t origLen = strlen(info.dli_fname);
+        size_t fakeLen = strlen(fakePath);
+        if (fakeLen <= origLen) {
+            strcpy((char *)info.dli_fname, fakePath);
+        } else {
+            strncpy((char *)info.dli_fname, fakePath, origLen);
+            ((char *)info.dli_fname)[origLen] = '\0';
+        }
         if(ret != KERN_SUCCESS) {
             os_thread_self_restrict_tpro_to_ro();
         }
